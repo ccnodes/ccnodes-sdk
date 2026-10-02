@@ -1,0 +1,57 @@
+{
+  "name": "ccnodes",
+  "version": "0.1.0",
+  "description": "Typed client for the ccnodes multi-chain UTXO explorer API — Bitcoin, Litecoin, Dogecoin, Zcash and more, from nodes we run ourselves.",
+  "license": "MIT",
+  "author": "KMSoftwareHQ",
+  "homepage": "https://ccnodes.net/explorer/v1/docs",
+  "repository": { "type": "git", "url": "git+https://github.com/KMSoftwareHQ/ccnodes-sdk.git" },
+  "bugs": { "url": "https://github.com/KMSoftwareHQ/ccnodes-sdk/issues" },
+  "keywords": ["bitcoin", "litecoin", "dogecoin", "zcash", "blockchain", "explorer", "utxo", "api", "sdk", "ccnodes"],
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+    },
+    "./account": {
+      "import": { "types": "./dist/account.d.ts", "default": "./dist/account.js" },
+      "require": { "types": "./dist/account.d.cts", "default": "./dist/account.cjs" }
+    },
+    "./node": {
+      "import": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
+      "require": { "types": "./dist/node.d.cts", "default": "./dist/node.cjs" }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:live": "CCNODES_LIVE=1 vitest run test/live.test.ts",
+    "snapshot:chains": "node scripts/snapshot-chains.mjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "peerDependencies": {
+    "@noble/curves": "^1.4.0",
+    "@noble/hashes": "^1.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@noble/curves": { "optional": true },
+    "@noble/hashes": { "optional": true }
+  },
+  "devDependencies": {
+    "@noble/curves": "^1.6.0",
+    "@noble/hashes": "^1.5.0",
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

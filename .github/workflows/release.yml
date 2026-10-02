@@ -1,0 +1,38 @@
+name: release
+# Publishes to npm when a maintainer pushes a tag like v0.1.0. Nothing else
+# publishes. The job refuses to run if the tag, package.json and
+# src/version.ts disagree.
+#
+# Needs the repository secret NPM_TOKEN (an npm automation token).
+# `--provenance` requires the repository to be PUBLIC; while it is private,
+# set PROVENANCE to "" below or the publish will fail.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+env:
+  PROVENANCE: "--provenance"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - run: node scripts/check-version.mjs "$GITHUB_REF"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm publish --access public $PROVENANCE
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

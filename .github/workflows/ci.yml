@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: node scripts/check-version.mjs
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      # The published tarball must load in both module systems.
+      - run: |
+          npm pack
+          mkdir /tmp/consumer && cd /tmp/consumer && npm init -y >/dev/null
+          npm i "$GITHUB_WORKSPACE"/ccnodes-*.tgz
+          node -e 'require("ccnodes"); require("ccnodes/account"); require("ccnodes/node")'
+          node --input-type=module -e 'await import("ccnodes"); await import("ccnodes/account"); await import("ccnodes/node")'
