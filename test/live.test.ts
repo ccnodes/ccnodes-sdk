@@ -4,9 +4,11 @@
  */
 import { describe, expect, it } from "vitest";
 import { CcnodesApiError, CcnodesClient, toBigInt } from "../src/index.js";
+import { operationsOf, uncovered } from "./coverage.js";
 
 const live = process.env.CCNODES_LIVE === "1";
 const c = new CcnodesClient({ baseUrl: process.env.CCNODES_BASE_URL, appId: "ccnodes-sdk-tests" });
+const decimalString = /^-?\d+$/;
 
 describe.skipIf(!live)("live API", () => {
   it("fleet-wide endpoints", async () => {
@@ -81,5 +83,67 @@ describe.skipIf(!live)("live API", () => {
     const funded = st.chain_stats.funded_txo_sum;
     if (typeof funded === "string") expect(funded).toMatch(/^\d{16,}$/);
     else expect(Number.isSafeInteger(funded)).toBe(true);
+  }, 60_000);
+
+  it("every data operation in the live spec has an SDK method", async () => {
+    // Drift check: a new server endpoint fails here until the SDK covers it
+    // (or lists it in NOT_IN_SDK). Refresh the offline copy with
+    // `npm run snapshot:openapi`.
+    const spec = await c.get<{ paths: Record<string, Record<string, unknown>> }>("/openapi.json");
+    expect(uncovered(operationsOf(spec))).toEqual([]);
+  }, 30_000);
+
+  it("mining and value pools", async () => {
+    const p = await c.pools("bitcoin", { range: "7d" });
+    expect(typeof p.complete).toBe("boolean");
+    expect(p.identified + p.unidentified.blocks).toBe(p.blocks);
+    for (const chain of ["zcash", "ycash", "litecoin", "junkcoin", "dash"]) {
+      const v = await c.valuePoolCharts(chain, { range: "7d" });
+      expect(v.pools.length).toBeGreaterThan(0);
+      for (const pool of v.pools) {
+        expect(v.series[pool]!.length).toBe(v.t.length);
+        for (const x of v.series[pool]!) if (x !== null) expect(x).toMatch(decimalString);
+      }
+    }
+    const missing = await c.valuePoolCharts("bitcoin").catch((e) => e);
+    expect((missing as CcnodesApiError).status).toBe(404);
+  }, 60_000);
+
+  it("MWEB (litecoin)", async () => {
+    const m = await c.mweb("litecoin");
+    expect(m.pool_sats).toMatch(decimalString);
+    const pegs = await c.mwebPegs("litecoin", { direction: "out", limit: 5 });
+    expect(pegs.pegs.every((x) => x.direction === "out" && typeof x.to_address === "string")).toBe(true);
+    const ins = await c.mwebPegs("litecoin", { direction: "in", limit: 5 });
+    expect(ins.pegs.every((x) => x.to_address === undefined)).toBe(true);
+    const sup = await c.mwebSupply("litecoin", { range: "7d" });
+    expect(sup.pool_sats.length).toBe(sup.t.length);
+  }, 60_000);
+
+  it("masternodes (dash)", async () => {
+    const s = await c.masternodes("dash");
+    expect(s.payments_24h.to_platform_sats).toMatch(decimalString);
+    expect(s.payment_cycle.estimate).toBe(true);
+    // Filtered: the full list is about 1 MB.
+    const list = await c.masternodeList("dash", { status: "banned", type: "evo" });
+    expect(list.masternodes.length).toBe(list.count);
+    const ev = await c.masternodeEvents("dash", { limit: 3 });
+    expect(ev.events.length).toBeLessThanOrEqual(3);
+    const pay = await c.masternodePayments("dash", { limit: 3 });
+    expect(pay.payments[0]!.amount_sats).toMatch(decimalString);
+    const one = await c.masternode("dash", pay.payments[0]!.protx);
+    expect(one.masternode.protx).toBe(pay.payments[0]!.protx);
+    expect(typeof one.masternode.in_list).toBe("boolean");
+  }, 60_000);
+
+  it("P2P nodes", async () => {
+    const n = await c.p2pNodes("dogecoin");
+    expect(n.reachable).toBeGreaterThan(0);
+    const list = await c.p2pNodeList("dogecoin");
+    expect(list.nodes.length).toBe(list.count);
+    const a = await c.addnodes("bitcoin", { limit: 3 });
+    expect(a.lines.join("\n")).toBe(a.conf);
+    const txt = await c.addnodesText("bitcoin", { limit: 3 });
+    expect(txt.split("\n").every((l) => l.startsWith("addnode="))).toBe(true);
   }, 60_000);
 });

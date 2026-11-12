@@ -89,4 +89,55 @@ describe("CcnodesClient", () => {
     expect(err.isRateLimited).toBe(true);
     expect(m.calls).toHaveLength(2);
   });
+  it("builds the chain-data endpoints' paths and queries", async () => {
+    const m = mockFetch({ body: {} });
+    const c = new CcnodesClient({ baseUrl: base, fetch: m.fn });
+    const protx = "ab".repeat(32);
+    await c.pools("bitcoin", { range: "7d" });
+    await c.valuePoolCharts("zcash", { range: "all" });
+    await c.valuePoolCharts("dash");
+    await c.mweb("litecoin");
+    await c.mwebPegs("litecoin", { direction: "out", limit: 200, before: 3211601 });
+    await c.mwebSupply("litecoin", { range: "1y" });
+    await c.masternodes("dash");
+    await c.masternodeList("dash", { status: "banned", type: "evo" });
+    await c.masternodeEvents("dash", { limit: 5, before: 1794441723 });
+    await c.masternodePayments("dash", { limit: 10, before: 2570865 });
+    await c.masternode("dash", protx);
+    await c.p2pNodes("dogecoin");
+    await c.p2pNodeList("bitcoin");
+    await c.addnodes("dogecoin", { limit: 3 });
+    expect(m.calls.map((x) => x.url.slice(base.length))).toEqual([
+      "/bitcoin/pools?range=7d",
+      "/zcash/charts/value-pools?range=all",
+      "/dash/charts/value-pools",
+      "/litecoin/mweb",
+      "/litecoin/mweb/pegs?direction=out&limit=200&before=3211601",
+      "/litecoin/mweb/supply?range=1y",
+      "/dash/masternodes",
+      "/dash/masternodes/list?status=banned&type=evo",
+      "/dash/masternodes/events?limit=5&before=1794441723",
+      "/dash/masternodes/payments?limit=10&before=2570865",
+      `/dash/masternode/${protx}`,
+      "/dogecoin/nodes",
+      "/bitcoin/nodes/list",
+      "/dogecoin/nodes/addnode?limit=3",
+    ]);
+  });
+
+  it("returns the addnode list as plain text with format=text", async () => {
+    const m = mockFetch({ text: "addnode=1.2.3.4:22556\naddnode=5.6.7.8:22556\n" });
+    const txt = await new CcnodesClient({ baseUrl: base, fetch: m.fn }).addnodesText("dogecoin", { limit: 2 });
+    expect(m.calls[0]!.url).toBe(`${base}/dogecoin/nodes/addnode?limit=2&format=text`);
+    expect(txt).toBe("addnode=1.2.3.4:22556\naddnode=5.6.7.8:22556");
+  });
+
+  it("keeps value-pool balances as decimal strings and null as null", async () => {
+    const m = mockFetch({
+      text: '{"pools":["orchard"],"latest":{"height":1,"time":2,"pools":{"orchard":"32096996990608"}},"t":[1,2],"series":{"orchard":[null,"32096996990608"]}}',
+    });
+    const v = await new CcnodesClient({ baseUrl: base, fetch: m.fn }).valuePoolCharts("zcash");
+    expect(v.latest.pools.orchard).toBe("32096996990608");
+    expect(v.series.orchard).toEqual([null, "32096996990608"]);
+  });
 });

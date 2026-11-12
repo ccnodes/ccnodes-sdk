@@ -36,6 +36,7 @@
     "test": "vitest run",
     "test:live": "CCNODES_LIVE=1 vitest run test/live.test.ts",
     "snapshot:chains": "node scripts/snapshot-chains.mjs",
+    "snapshot:openapi": "node scripts/snapshot-openapi-paths.mjs",
     "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "peerDependencies": {
