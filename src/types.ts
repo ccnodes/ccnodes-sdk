@@ -540,3 +540,296 @@ export interface Pricing {
 export interface Usage {
   [k: string]: unknown;
 }
+
+// ---- mining pools and value pools ---------------------------------------------------
+
+export interface MiningPoolShare {
+  name: string;
+  slug: string;
+  blocks: number;
+  /** Fraction of `blocks` in the window, 0–1. */
+  share: number;
+}
+
+export interface MiningPools {
+  chain: string;
+  range: string;
+  /** Window start (unix seconds); null for `range=all`. */
+  from: number | null;
+  /** Oldest block we hold (unix seconds). */
+  collected_since: number;
+  /** False when the window reaches back past `collected_since`; shares then cover only what we hold. */
+  complete: boolean;
+  blocks: number;
+  identified: number;
+  pools: MiningPoolShare[];
+  /** Blocks no pool tag or address matched. Reported, never dropped. */
+  unidentified: { blocks: number; share: number };
+}
+
+export interface ValuePoolCharts {
+  chain: string;
+  ticker: string;
+  decimals: number;
+  range: string;
+  /** `valuepools` (Zcash family), `mweb` (Litecoin, Junkcoin) or `dash_credit` (Dash). */
+  source: string;
+  /** Pool names, e.g. `sapling`, `orchard`, `mweb`, `platform_credit`. */
+  pools: string[];
+  from: number;
+  to: number;
+  bucket_secs: number;
+  stride_blocks: number;
+  /** The pool's first block (0 on the Zcash family). */
+  activation_height: number;
+  collected_from: number;
+  /** True once collection reaches `activation_height`. */
+  complete_history: boolean;
+  /** Newest stored block. Balances are decimal strings in base units; null means not tracked then. */
+  latest: { height: number; time: number; pools: Record<string, string | null> };
+  /** Bucket start times (unix seconds), aligned with every series. */
+  t: number[];
+  /** Per pool: balance after the last block in each bucket, decimal string; null means not tracked then, never zero. */
+  series: Record<string, Array<string | null>>;
+}
+
+// ---- MWEB (Litecoin) ------------------------------------------------------------------
+
+export interface MwebSummary {
+  chain: string;
+  height: number;
+  time: number;
+  /** Pool balance from the block header, decimal string in base units. */
+  pool_sats: string;
+  /** Cumulative count of MWEB outputs ever created, NOT a live UTXO count. Decimal string. */
+  outputs_ever_created: string;
+  activation_height: number;
+  collected_from: number;
+  /** False until the ledger reaches MWEB activation. */
+  complete_history: boolean;
+  last_24h: {
+    blocks: number;
+    peg_ins: number;
+    peg_outs: number;
+    pegged_in_sats: string;
+    pegged_out_sats: string;
+    /** Signed decimal string. */
+    pool_change_sats: string;
+  };
+}
+
+export interface MwebPeg {
+  direction: "in" | "out";
+  txid: string;
+  vout: number;
+  height: number;
+  time: number;
+  block_hash: string;
+  amount_sats: string;
+  /** Peg-outs only. A peg-in's destination is inside MWEB and is not public. */
+  to_address?: string;
+}
+
+export interface MwebPegs {
+  chain: string;
+  collected_from: number;
+  complete_history: boolean;
+  /** Pass as `before` for the next page; null when there is none. */
+  next_before: number | null;
+  pegs: MwebPeg[];
+}
+
+export interface MwebSupply {
+  chain: string;
+  range: string;
+  bucket_secs: number;
+  collected_from: number;
+  complete_history: boolean;
+  /** Bucket start times (unix seconds), aligned with every series. */
+  t: number[];
+  /** Pool balance at the end of each bucket, decimal string in base units. */
+  pool_sats: string[];
+  pegged_in_sats: string[];
+  pegged_out_sats: string[];
+  peg_ins: number[];
+  peg_outs: number[];
+}
+
+// ---- masternodes (Dash) ---------------------------------------------------------------
+
+export interface MasternodeTypeCounts {
+  total: number;
+  enabled: number;
+  pose_banned: number;
+}
+
+export interface MasternodeSummary {
+  chain: string;
+  /** Unix seconds. */
+  updated: number;
+  total: number;
+  enabled: number;
+  pose_banned: number;
+  pose_penalized: number;
+  revoked: number;
+  /** Keyed by type: `Regular`, `Evo`. */
+  by_type: Record<string, MasternodeTypeCounts>;
+  /** ProTx format (BLS key scheme), NOT the software version. */
+  protx_versions: Array<{ version: number; count: number }>;
+  /** From the network crawler; `crawled` of `enabled` is the coverage. */
+  software_versions: { crawled: number; versions: Array<{ agent: string; count: number }> };
+  address_families: Array<{ family: string; count: number }>;
+  /** An estimate: enabled Regular + 4 × enabled Evo blocks. */
+  payment_cycle: { blocks: number; secs: number; estimate: boolean };
+  /** Newest payment the list records; measure `last_paid_height` against this. */
+  list_height: number;
+  payments_collected_from: number;
+  payments_24h: {
+    blocks: number;
+    through_height: number;
+    to_masternodes_sats: string;
+    /** Dash Platform credit-pool share, never part of `to_masternodes_sats`. */
+    to_platform_sats: string;
+  };
+  /** Event counts over 7 days, keyed by event; a key with no events may be absent. */
+  events_7d: Record<string, number>;
+}
+
+export interface Masternode {
+  protx: string;
+  /** `Regular` or `Evo`. */
+  type: string;
+  /** e.g. `ENABLED`, `POSE_BANNED`. */
+  status: string;
+  /** `ip:port`. */
+  address: string;
+  payee: string;
+  /** ProTx format (BLS key scheme), NOT the software version. */
+  protx_version: number;
+  registered_height: number;
+  /** Null means never paid. */
+  last_paid_height: number | null;
+  consecutive_payments: number;
+  pose_penalty: number;
+  /** Null means not banned. */
+  pose_ban_height: number | null;
+  pose_revived_height: number | null;
+  revocation_reason: number;
+}
+
+export interface MasternodeList {
+  chain: string;
+  count: number;
+  masternodes: Masternode[];
+}
+
+export interface MasternodeEvent {
+  /** `registered`, `pose_banned`, `revived`, `revoked` or `removed`. */
+  event: string;
+  detail: string;
+  height: number;
+  time: number;
+  protx: string;
+}
+
+export interface MasternodeEvents {
+  chain: string;
+  events: MasternodeEvent[];
+  /** Unix time to pass as `before` for the next page; null when there is none. */
+  next_before: number | null;
+}
+
+export interface MasternodePayment {
+  protx: string;
+  payee: string;
+  height: number;
+  time: number;
+  block_hash: string;
+  amount_sats: string;
+  /** Dash Platform credit-pool share of the same block, paid to an OP_RETURN. */
+  platform_sats: string;
+}
+
+export interface MasternodePayments {
+  chain: string;
+  payments: MasternodePayment[];
+  /** Block height to pass as `before` for the next page; null when there is none. */
+  next_before: number | null;
+}
+
+export interface MasternodeDetail {
+  chain: string;
+  /** Current state, or the last known one if it left the list (`in_list: false`). */
+  masternode: Masternode & {
+    in_list: boolean;
+    owner_address: string;
+    voting_address: string;
+    collateral_address: string;
+  };
+  /** Its last 50 payouts. */
+  payments: MasternodePayment[];
+  /** Totals over the payouts we hold (since `payments_collected_from`). */
+  payments_total: { count: number; amount_sats: string };
+  payments_collected_from: number;
+  events: Array<Omit<MasternodeEvent, "protx">>;
+}
+
+// ---- P2P network crawler -------------------------------------------------------------
+
+export interface P2PNetwork {
+  chain: string;
+  crawled_at: number;
+  /** Nodes that accept inbound connections; no crawler can see the others. */
+  reachable: number;
+  unreachable_ipv4: number;
+  /** Known from gossip but not tested: our server has no IPv6 route. */
+  ipv6_untested: number;
+  /** Height of each reachable node relative to our tip when probed. */
+  heights: { synced: number; behind: number; far_behind: number; ahead: number; unknown: number };
+  agents: Array<{ agent: string; count: number }>;
+  protocols: Array<{ protocol: number; count: number }>;
+  ports: Array<{ port: number; count: number }>;
+  pass: {
+    started: number;
+    finished: number;
+    tried: number;
+    /** Peers judged to belong to another chain or fork. */
+    foreign: number;
+    our_tip: number;
+    our_protocol: number;
+  };
+}
+
+export interface P2PNode {
+  /** `ip:port`. */
+  addr: string;
+  agent: string;
+  protocol: number;
+  /** Service flags, hex. */
+  services: string;
+  /** Height when probed; null when the node did not say. */
+  height: number | null;
+  /** `synced`, `behind`, `far_behind`, `ahead` or `unknown`. */
+  height_state: string;
+  /** TCP connect time from our server: a hint of distance, not a ping. */
+  connect_ms: number;
+  first_seen: number;
+  last_seen: number;
+}
+
+export interface P2PNodeList {
+  chain: string;
+  crawled_at: number;
+  count: number;
+  nodes: P2PNode[];
+}
+
+export interface AddnodeList {
+  chain: string;
+  crawled_at: number;
+  count: number;
+  /** `addnode=ip:port` lines. */
+  lines: string[];
+  /** The same lines joined by newlines, ready for a conf file. */
+  conf: string;
+}

@@ -4,6 +4,7 @@ import { TokenBucket } from "./limiter.js";
 import { ChainRegistry, type ManifestCache } from "./manifest.js";
 import { SDK_VERSION } from "./version.js";
 import type {
+  AddnodeList,
   AddressRank,
   AddressStats,
   BalanceHistory,
@@ -16,10 +17,21 @@ import type {
   FeeEstimate,
   HolderCharts,
   MarketCharts,
+  MasternodeDetail,
+  MasternodeEvents,
+  MasternodeList,
+  MasternodePayments,
+  MasternodeSummary,
   MempoolInfo,
   MempoolTxs,
+  MiningPools,
+  MwebPegs,
+  MwebSummary,
+  MwebSupply,
   NodeStatus,
   Overview,
+  P2PNetwork,
+  P2PNodeList,
   Pricing,
   RichList,
   SearchResponse,
@@ -27,6 +39,7 @@ import type {
   Transaction,
   Usage,
   Utxo,
+  ValuePoolCharts,
 } from "./types.js";
 
 export const DEFAULT_BASE_URL = "https://ccnodes.net/explorer/v1";
@@ -230,6 +243,86 @@ export class CcnodesClient {
   /** Fee rates in base units per vbyte. */
   fees(chain: string, o?: RequestOptions): Promise<FeeEstimate> {
     return this.get(`/${seg(chain)}/fees/recommended`, undefined, o);
+  }
+
+  // ---- mining pools and value pools -----------------------------------------------------
+
+  /** Who mined the blocks in `range`. Check `complete`; `unidentified` blocks are counted, not dropped. */
+  pools(chain: string, opts: { range?: ChartRange } & RequestOptions = {}): Promise<MiningPools> {
+    return this.get(`/${seg(chain)}/pools`, { range: opts.range }, opts);
+  }
+  /**
+   * Value-pool balances over time: shielded pools (Zcash, Ycash), MWEB (Litecoin, Junkcoin), Platform credit (Dash).
+   * 404 on other chains; `isBuilding` until the ledger is collected.
+   */
+  valuePoolCharts(chain: string, opts: { range?: ChartRange } & RequestOptions = {}): Promise<ValuePoolCharts> {
+    return this.get(`/${seg(chain)}/charts/value-pools`, { range: opts.range }, opts);
+  }
+
+  // ---- MWEB ---------------------------------------------------------------------------
+
+  /** MWEB pool balance and 24 h peg flow. Litecoin only; 404 elsewhere. */
+  mweb(chain: string, o?: RequestOptions): Promise<MwebSummary> {
+    return this.get(`/${seg(chain)}/mweb`, undefined, o);
+  }
+  /** Peg-ins and peg-outs, newest first. Page with `before: next_before`. Litecoin only. */
+  mwebPegs(
+    chain: string,
+    opts: { direction?: "in" | "out" | "all"; limit?: number; before?: number } & RequestOptions = {},
+  ): Promise<MwebPegs> {
+    return this.get(`/${seg(chain)}/mweb/pegs`, { direction: opts.direction, limit: opts.limit, before: opts.before }, opts);
+  }
+  /** MWEB pool balance and peg totals per bucket. Litecoin only. */
+  mwebSupply(chain: string, opts: { range?: ChartRange } & RequestOptions = {}): Promise<MwebSupply> {
+    return this.get(`/${seg(chain)}/mweb/supply`, { range: opts.range }, opts);
+  }
+
+  // ---- masternodes --------------------------------------------------------------------
+
+  /** Masternode network summary. Dash only (404 elsewhere); `isBuilding` until the list is collected. */
+  masternodes(chain: string, o?: RequestOptions): Promise<MasternodeSummary> {
+    return this.get(`/${seg(chain)}/masternodes`, undefined, o);
+  }
+  /** Every masternode in the current list (about 1 MB unfiltered). Dash only. */
+  masternodeList(
+    chain: string,
+    opts: { status?: "enabled" | "banned" | "all"; type?: "regular" | "evo" | "all" } & RequestOptions = {},
+  ): Promise<MasternodeList> {
+    return this.get(`/${seg(chain)}/masternodes/list`, { status: opts.status, type: opts.type }, opts);
+  }
+  /** List events, newest first. `before` is a unix time; page with `next_before`. `limit` up to 200. */
+  masternodeEvents(chain: string, opts: { limit?: number; before?: number } & RequestOptions = {}): Promise<MasternodeEvents> {
+    return this.get(`/${seg(chain)}/masternodes/events`, { limit: opts.limit, before: opts.before }, opts);
+  }
+  /** Payouts, newest first. `before` is a block height; page with `next_before`. `limit` up to 200. */
+  masternodePayments(
+    chain: string,
+    opts: { limit?: number; before?: number } & RequestOptions = {},
+  ): Promise<MasternodePayments> {
+    return this.get(`/${seg(chain)}/masternodes/payments`, { limit: opts.limit, before: opts.before }, opts);
+  }
+  /** One masternode by ProTx hash, including one that has left the list. */
+  masternode(chain: string, protx: string, o?: RequestOptions): Promise<MasternodeDetail> {
+    return this.get(`/${seg(chain)}/masternode/${seg(protx)}`, undefined, o);
+  }
+
+  // ---- P2P network ---------------------------------------------------------------------
+
+  /** The crawler's latest pass over the chain's P2P network. Counts are of reachable nodes only. */
+  p2pNodes(chain: string, o?: RequestOptions): Promise<P2PNetwork> {
+    return this.get(`/${seg(chain)}/nodes`, undefined, o);
+  }
+  /** Every node reached in the latest pass (about 1 MB on bitcoin). */
+  p2pNodeList(chain: string, o?: RequestOptions): Promise<P2PNodeList> {
+    return this.get(`/${seg(chain)}/nodes/list`, undefined, o);
+  }
+  /** `addnode=ip:port` lines of reachable nodes at our tip. `limit` up to 64. */
+  addnodes(chain: string, opts: { limit?: number } & RequestOptions = {}): Promise<AddnodeList> {
+    return this.get(`/${seg(chain)}/nodes/addnode`, { limit: opts.limit }, opts);
+  }
+  /** The same lines as plain text, ready to append to a conf file. */
+  async addnodesText(chain: string, opts: { limit?: number } & RequestOptions = {}): Promise<string> {
+    return (await this.text("GET", `/${seg(chain)}/nodes/addnode`, { limit: opts.limit, format: "text" }, undefined, opts)).trim();
   }
 
   // ---- plumbing ------------------------------------------------------------------------

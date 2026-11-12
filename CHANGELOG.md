@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Chain-data endpoints: `pools`, `valuePoolCharts`, `mweb`, `mwebPegs`,
+  `mwebSupply`, `masternodes`, `masternodeList`, `masternodeEvents`,
+  `masternodePayments`, `masternode`, `p2pNodes`, `p2pNodeList`, `addnodes`
+  and `addnodesText`, plus a test that fails when the server documents a data
+  endpoint the SDK lacks.
+
 ## 0.1.0 — unreleased
 
 First release.
